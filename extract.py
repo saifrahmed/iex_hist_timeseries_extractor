@@ -2,22 +2,10 @@ import os
 import sys
 from datetime import datetime
 import csv
+import random
+import argparse
 
 from IEXTools import Parser, messages
-
-
-# securities of interest (limit this, or your outputs will be huge!)
-SOI = ['AIG', "ACN", "GS", "OMC"]
-SOI = ["GME", "AMC", "CLOV", "AFRM", "WISH"]
-
-
-# get data from https://iextrading.com/trading/market-data/
-DATA_FOLDER = "/Users/saif/Downloads"
-DATA_FILE = 'data_feeds_20211019_20211019_IEXTP1_TOPS1.6.pcap'
-DATA_FILE = 'data_feeds_20211018_20211018_IEXTP1_TOPS1.6.pcap'
-DATA_FILE = 'data_feeds_20211015_20211015_IEXTP1_TOPS1.6.pcap'
-OUTFILE_CSV = "ticker_tape.csv"
-
 
 HEADER = ['timestamp', 'symbol', 'bid_size', 'bid_price', 'ask_price', 'ask_size']
 
@@ -30,26 +18,40 @@ def save_quotes(input_pcap, output_csv, secs_of_interest):
 	allowed = [messages.QuoteUpdate]
 	with Parser(input_pcap, tops=True, deep=False) as iex_messages:
 		while True:
-			x = iex_messages.get_next_message(allowed)
-			if x.symbol in SOI:
-				if x.bid_size!=0 and x.ask_size!=0:
-					dt_object = datetime.fromtimestamp(int(str(x.timestamp)[:10]))
+			try:
+				x = iex_messages.get_next_message(allowed)
+				if x.symbol in secs_of_interest:
+					if x.bid_size!=0 and x.ask_size!=0:
+						dt_object = datetime.fromtimestamp(int(str(x.timestamp)[:10]))
 
-					tick = {
-						"timestamp": x.timestamp,
-						"symbol": x.symbol,
-						"bid_size": x.bid_size,
-						"bid_price": x.bid_price_int/10000,
-						"ask_price": x.ask_price_int/10000,
-						"ask_size": x.ask_size
-						}
-					print(dt_object, tick)
-					writer.writerow([x.timestamp,x.symbol,x.bid_size,tick['bid_price'],tick['ask_price'],x.ask_size])
+						tick = {
+							"timestamp": x.timestamp,
+							"symbol": x.symbol,
+							"bid_size": x.bid_size,
+							"bid_price": x.bid_price_int/10000,
+							"ask_price": x.ask_price_int/10000,
+							"ask_size": x.ask_size
+							}
+						if random.random()<0.01:
+							print(dt_object, tick)
+						writer.writerow([x.timestamp,x.symbol,x.bid_size,tick['bid_price'],tick['ask_price'],x.ask_size])
+			except StopIteration:
+				print(f"Reached the end of file {input_pcap}")
+				csv_file.close()
+				return
 
 if __name__ == "__main__":
 
-	save_quotes(input_pcap=f"{DATA_FOLDER}/{DATA_FILE}", 
-				output_csv=OUTFILE_CSV, 
-				secs_of_interest=SOI)
+	parser = argparse.ArgumentParser()
+	parser.add_argument("-i", "--input", help="Input PCAP file")
+	parser.add_argument("-o", "--output", help="Output CSV file")
+	parser.add_argument("-t", '--tickers', help="Comman separated list of tickers of interest")
+	args = parser.parse_args()
+
+	print(args)
+
+	save_quotes(input_pcap=args.input, 
+				output_csv=args.output, 
+				secs_of_interest=args.tickers.split(","))
 	
 
